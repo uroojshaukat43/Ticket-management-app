@@ -52,47 +52,45 @@ jobs:
         env:
           VITE_API_URL: ${{ env.VITE_API_URL }}
 
-
   backend:
-  name: Backend CI
-  runs-on: ubuntu-latest
+    name: Backend CI
+    runs-on: ubuntu-latest
 
-  defaults:
-    run:
-      working-directory: backend
+    defaults:
+      run:
+        working-directory: backend
 
-  steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-    - name: Set up Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: ${{ env.NODE_VERSION }}
-        cache: npm
-        cache-dependency-path: backend/package-lock.json
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
 
-    - name: Install dependencies
-      run: npm ci --include=dev
+      - name: Install dependencies
+        run: npm ci --include=dev
 
-    - name: Syntax-check backend
-      run: node --check src/server.js
+      - name: Syntax-check backend
+        run: node --check src/server.js
 
-    - name: Verify backend entry point
-      run: test -f src/server.js
+      - name: Verify backend entry point
+        run: test -f src/server.js
 
-    - name: Run backend unit tests
-      run: npm run test
+      - name: Run backend unit tests
+        run: npm run test
 
-    - name: Lint backend
-      run: npm run lint
+      - name: Lint backend
+        run: npm run lint
 
-    - name: Verify backend dependencies
-      run: npm ls --depth=0
+      - name: Verify backend dependencies
+        run: npm ls --depth=0
 
-    - name: Build backend
-      run: npm run build --if-present
-
+      - name: Build backend
+        run: npm run build --if-present
 
   docker:
     name: Docker Build
@@ -136,7 +134,6 @@ jobs:
           docker image inspect ticket-management-frontend:ci >/dev/null
           echo "Docker images built successfully."
 
-
   deployment-status:
     name: Deployment Status
     runs-on: ubuntu-latest
@@ -151,7 +148,7 @@ jobs:
           DOCKER_RESULT: ${{ needs.docker.result }}
 
         run: |
-          echo "=== Ticket Management App — CI/CD Summary ==="
+          echo "=== Ticket Management App - CI/CD Summary ==="
           echo "Event:        ${{ github.event_name }}"
           echo "Ref:          ${{ github.ref_name }}"
           echo "Commit:       ${{ github.sha }}"
@@ -164,7 +161,7 @@ jobs:
           echo ""
 
           if [ "${FRONTEND_RESULT}" != "success" ] || [ "${BACKEND_RESULT}" != "success" ] || [ "${DOCKER_RESULT}" != "success" ]; then
-            echo "Deployment status: BLOCKED — one or more CI jobs failed."
+            echo "Deployment status: BLOCKED - one or more CI jobs failed."
             exit 1
           fi
 
