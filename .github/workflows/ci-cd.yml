@@ -54,44 +54,45 @@ jobs:
 
 
   backend:
-    name: Backend CI
-    runs-on: ubuntu-latest
+  name: Backend CI
+  runs-on: ubuntu-latest
 
-    defaults:
-      run:
-        working-directory: backend
+  defaults:
+    run:
+      working-directory: backend
 
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+  steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: npm
-          cache-dependency-path: backend/package-lock.json
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: npm
+        cache-dependency-path: backend/package-lock.json
 
-      - name: Install dependencies
-        run: npm ci
+    - name: Install dependencies
+      run: npm ci --include=dev
 
-      - name: Syntax-check backend
-        run: node --check src/server.js
+    - name: Syntax-check backend
+      run: node --check src/server.js
 
-      - name: Verify backend entry point
-        run: test -f src/server.js
+    - name: Verify backend entry point
+      run: test -f src/server.js
 
-      - name: Verify backend dependencies
-        run: npm ls --depth=0
+    - name: Run backend unit tests
+      run: npm run test
 
-      - name: Build backend
-        run: npm run build --if-present
+    - name: Lint backend
+      run: npm run lint
 
-      - name: Run backend unit tests
-        run: npm run test
+    - name: Verify backend dependencies
+      run: npm ls --depth=0
 
-      - name: Lint backend
-        run: npm run lint
+    - name: Build backend
+      run: npm run build --if-present
+
 
   docker:
     name: Docker Build
