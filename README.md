@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Ticket Management Application
 
 Full-stack support ticket system with React (Vite), Node.js/Express, MongoDB, JWT authentication, and Docker deployment.
@@ -141,3 +142,6 @@ ticket-management-app/
 ## License
 
 MIT
+=======
+# Ticket-management-app
+>>>>>>> 53391fb44af138092aa4539445651a6d0140e7a3
