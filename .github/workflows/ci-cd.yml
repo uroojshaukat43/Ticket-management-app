@@ -1,0 +1,179 @@
+name: CI/CD
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: "20"
+  VITE_API_URL: /api
+
+jobs:
+
+  frontend:
+    name: Frontend CI
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint frontend
+        run: npm run lint
+
+      - name: Run frontend unit tests
+        run: npm test
+
+      - name: Build frontend
+        run: npm run build
+        env:
+          VITE_API_URL: ${{ env.VITE_API_URL }}
+
+
+  backend:
+    name: Backend CI
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Syntax-check backend
+        run: node --check src/server.js
+
+      - name: Verify backend entry point
+        run: test -f src/server.js
+
+      - name: Verify backend dependencies
+        run: npm ls --depth=0
+
+      - name: Build backend
+        run: npm run build --if-present
+
+      - name: Run backend unit tests
+        run: npm run test
+
+      - name: Lint backend
+        run: npm run lint
+
+  docker:
+    name: Docker Build
+    runs-on: ubuntu-latest
+    needs: [frontend, backend]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build backend Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile
+          push: false
+          load: true
+          tags: ticket-management-backend:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build frontend Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile
+          push: false
+          load: true
+          tags: ticket-management-frontend:ci
+          build-args: |
+            VITE_API_URL=${{ env.VITE_API_URL }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Verify Docker images
+        run: |
+          docker image inspect ticket-management-backend:ci >/dev/null
+          docker image inspect ticket-management-frontend:ci >/dev/null
+          echo "Docker images built successfully."
+
+
+  deployment-status:
+    name: Deployment Status
+    runs-on: ubuntu-latest
+    needs: [frontend, backend, docker]
+    if: always()
+
+    steps:
+      - name: Log deployment status
+        env:
+          FRONTEND_RESULT: ${{ needs.frontend.result }}
+          BACKEND_RESULT: ${{ needs.backend.result }}
+          DOCKER_RESULT: ${{ needs.docker.result }}
+
+        run: |
+          echo "=== Ticket Management App — CI/CD Summary ==="
+          echo "Event:        ${{ github.event_name }}"
+          echo "Ref:          ${{ github.ref_name }}"
+          echo "Commit:       ${{ github.sha }}"
+          echo "Run URL:      ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          echo ""
+          echo "Job results:"
+          echo "  Frontend CI:  ${FRONTEND_RESULT}"
+          echo "  Backend CI:   ${BACKEND_RESULT}"
+          echo "  Docker build: ${DOCKER_RESULT}"
+          echo ""
+
+          if [ "${FRONTEND_RESULT}" != "success" ] || [ "${BACKEND_RESULT}" != "success" ] || [ "${DOCKER_RESULT}" != "success" ]; then
+            echo "Deployment status: BLOCKED — one or more CI jobs failed."
+            exit 1
+          fi
+
+          if [ "${{ github.event_name }}" = "push" ] && [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            echo "Deployment status: READY"
+            echo "All checks passed on main."
+            echo "Images ticket-management-backend:ci and ticket-management-frontend:ci are build-ready."
+            echo "Automated deployment can be added after configuring deployment credentials."
+            echo "No secrets are read or printed by this workflow."
+          else
+            echo "Deployment status: SKIPPED"
+            echo "Automated deployment targets main branch pushes."
+          fi
